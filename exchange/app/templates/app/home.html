@@ -1,0 +1,57 @@
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css">
+      <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap-theme.min.css">
+      <link href="//fonts.googleapis.com/css?family=Lobster&subset=latin,latin-ext" rel="stylesheet" type="text/css">
+      <title>Exchange</title>
+    </head>
+    <body>
+        <div class="container">
+            <h1><a href="/">Exchange</a></h1>
+            {% block content %}
+            {% if user.is_authenticated %}
+            <b>Welcome, {{ user.username }}</b>
+            <a href="{% url 'logout' %}" id="logoutbt">Logout</a>
+            <p></p>
+            <b> BTC: {{ BTC | floatformat:8 }}</b>
+            <p></p>
+            <b> Balance: {{ fiatMoney | floatformat:2 }}</b>
+            <div class="text-right">
+                <a href="{% url 'profit' %}"><button>Profit</button></a>
+                <a href="{% url 'orderBook' %}"><button>OrderBook</button></a>
+            </div>
+        </div>
+        <p></p>
+        <form method = "POST">
+            {% csrf_token %}
+            <div>
+                <label class="col-md-5 control-label text-right">Price:</label>
+                <div>
+                    {{ form.price }}
+                </div>
+            </div>
+            <p></p>
+            <div>
+                <label class="col-md-5 control-label text-right">Quantity:</label>
+                <div>
+                    {{ form.quantity }}
+                </div>
+            </div>
+            <p></p>
+            <div class="col-md-6 col-md-offset-5">
+                <button class="btn btn-outline-info" type="submit" name ="buy">Buy</button>
+                <button class="btn btn-outline-info" type="submit" name ="sell">Sell</button>
+            </div>
+            <p></p>
+            <div class="col-md-6 col-md-offset-5">
+                <p></p>
+                {% for message in messages %}
+                <p id="messages"> <b> {{message}} </b> </p>
+                {% endfor %}
+            </div>
+        </form>
+        {% endif %}
+        {% endblock %}
+    </body>
+    </html>

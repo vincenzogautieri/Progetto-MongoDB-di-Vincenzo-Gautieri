@@ -1,0 +1,35 @@
+	{% extends 'app/home.html' %}
+
+	{% block content %}
+	<form method="POST" action="">
+		{% csrf_token %}
+		<div class="form-group clearfix">
+			<p></p>
+			<label class="col-md-5 control-label text-right">Username:</label>
+			<span class="input-group-text"><i class="fas fa-user"></i></span>
+			<div class="col-md-6">
+				<input type="text" name="username">
+			</div>
+		</div>
+		<div class="form-group clearfix">
+			<label class="col-md-5 control-label text-right">Password:</label>
+			<span class="input-group-text"><i class="fas fa-key"></i></span>
+			<div class="col-md-6">
+				<input type="password" name="password">
+			</div>
+			<div class="col-md-6 col-md-offset-5">
+				<p></p>
+				<input class="btn login_btn" type="submit" value="Login">
+			</div>
+		</div>
+	</form>
+	<div class="col-md-6 col-md-offset-5">
+		<div class="mt-4">
+			Don't have an account? <a href="{% url 'register' %}" class="ml-2">Sign Up</a>
+			<p></p>
+			{% for message in messages %}
+			<p id="messages"> <b> {{message}} </b> </p>
+			{% endfor %}
+		</div>
+	</div>
+	{% endblock %}

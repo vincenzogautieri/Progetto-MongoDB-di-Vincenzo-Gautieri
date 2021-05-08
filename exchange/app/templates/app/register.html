@@ -1,0 +1,57 @@
+    {% extends 'app/home.html' %}
+
+    {% block content %}
+    <form method="post" action="">
+        {% csrf_token %}
+        <div>
+            <label class="col-md-5 control-label text-right">Name:</label>
+            <div>
+                {{ form.first_name }}
+            </div>
+        </div>
+        <p></p>
+        <div>
+            <label class="col-md-5 control-label text-right">Surname:</label>
+            <div>
+                {{ form.last_name }}
+            </div>
+        </div>
+        <p></p>
+        <div>
+            <label class="col-md-5 control-label text-right">Username:</label>
+            <div>
+                {{ form.username }}
+            </div>
+        </div>
+        <p></p>
+        <div>
+            <label class="col-md-5 control-label text-right">Email:</label>
+            <div>
+                {{ form.email }}
+            </div>
+        </div>
+        <p></p>
+        <div>
+            <label class="col-md-5 control-label text-right">Password:</label>
+            <div>
+                {{ form.password1 }}
+            </div>
+        </div>
+        <p></p>
+        <div>
+            <label class="col-md-5 control-label text-right">Confirm Password:</label>
+            <div>
+                {{ form.password2 }}
+            </div>
+        </div>
+        <div class="col-md-6 col-md-offset-5">
+            <p></p>
+            <input class="btn login_btn" type="submit" value="Register">
+            <p></p>
+            <div class="mt-4">
+                Already have an account? <a href="{% url 'login' %}" class="ml-2">Login</a>
+                <p> <b> {{ form.errors }} </b> </p>
+            </div>
+        </div>
+    </form>
+    {% endblock %}
