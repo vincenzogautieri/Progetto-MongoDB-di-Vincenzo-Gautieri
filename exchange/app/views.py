@@ -13,7 +13,7 @@ import random
 def home(request):
     user = User.objects.get(username=request.user)
     profile = Profile.objects.get(user=user)
-    BTC = profile.BTC
+    BTC = round(profile.BTC, 8)
     fiatMoney = round(profile.fiatMoney, 2)
     if request.method == "POST":
         form = OrderForm(request.POST)
@@ -27,8 +27,171 @@ def home(request):
                 if profile.BTC >= float(request.POST['quantity']):
                     newSell = Order(profile=profile, price=request.POST['price'], quantity=request.POST['quantity'], type='Sell')
                     newSell.save()
-                    messages.success(request, 'Registered Order!')
-                    return redirect('home')
+                    try:
+                        purchases = Order.objects.filter(type__contains='Buy').filter(complete=False).order_by('price')[0]
+                        purchaseProfile = purchases.profile
+                        firstBalance = round(purchaseProfile.fiatMoney, 2)
+                        if purchases:
+                            if float(request.POST['quantity']) == purchases.quantity:
+                                if newSell.profile._id == purchases.profile._id:
+                                    Order.objects.filter(_id=newSell._id).update(complete=True)
+                                    Order.objects.filter(_id=purchases._id).update(complete=True)
+                                    messages.success(request, 'Registered Order!')
+                                    return redirect('home')
+                                else:
+                                    if purchases.price >= float(newSell.price):
+                                        Order.objects.filter(_id=newSell._id).update(complete=True)
+                                        Order.objects.filter(_id=purchases._id).update(complete=True)
+                                        profile.BTC -= float(newSell.quantity)
+                                        profile.fiatMoney += float(purchases.price)
+                                        profile.profit += float(purchases.price)
+                                        profile.save()
+                                        purchaseProfile.BTC += float(purchases.quantity)
+                                        purchaseProfile.fiatMoney -= float(purchases.price)
+                                        profit = purchaseProfile.profit + (purchaseProfile.fiatMoney - firstBalance)
+                                        purchaseProfile.profit = profit
+                                        purchaseProfile.save()
+                                        messages.success(request, 'Registered Order!')
+                                        return redirect('home')
+                                    else:
+                                        messages.success(request, 'Registered Order!')
+                                        return redirect('home')
+                            elif float(request.POST['quantity']) > purchases.quantity:
+                                quantityOrder = 0.0
+                                listOrder = Order.objects.filter(type__contains='Buy').filter(complete=False).order_by('price')
+                                listQuantityOrder = []
+                                for i in listOrder:
+                                    listQuantityOrder.append(i.quantity)
+                                totQuantity = sum(listQuantityOrder)
+                                for purchase in listOrder:
+                                    quantityOrder += float(purchase.quantity)
+                                    secondaryBalance = purchaseProfile.fiatMoney
+                                    if quantityOrder > float(request.POST['quantity']):
+                                        newQuantity = round(float(quantityOrder) - float(request.POST['quantity']), 8)
+                                        newPrice = ((float(purchase.price) * float(newQuantity)) / float(purchase.quantity))
+                                        if newSell.profile._id == purchase.profile._id:
+                                            Order.objects.filter(_id=purchase._id).update(quantity=newQuantity)
+                                            Order.objects.filter(_id=purchase._id).update(price=newPrice)
+                                            Order.objects.filter(_id=newSell._id).update(complete=True)
+                                            break
+                                        else:
+                                            if purchases.price >= float(newSell.price):
+                                                profile.BTC -= float(newQuantity)
+                                                profile.fiatMoney += ((float(purchase.price) * float(newQuantity)) / float(purchase.quantity))
+                                                profile.profit += ((float(purchase.price) * float(newQuantity)) / float(purchase.quantity))
+                                                profile.save()
+                                                purchaseProfile.BTC += float(newQuantity)
+                                                purchaseProfile.fiatMoney -= ((float(purchase.price) * float(newQuantity)) / float(purchase.quantity))
+                                                profit = purchaseProfile.profit + (purchaseProfile.fiatMoney - secondaryBalance)
+                                                purchaseProfile.profit = profit
+                                                purchaseProfile.save()
+                                                Order.objects.filter(_id=purchase._id).update(quantity=newQuantity)
+                                                Order.objects.filter(_id=purchase._id).update(price=newPrice)
+                                                Order.objects.filter(_id=newSell._id).update(complete=True)
+                                                break
+                                            else:
+                                                messages.success(request, 'Registered Order!')
+                                                return redirect('home')
+                                    elif quantityOrder == float(request.POST['quantity']):
+                                        if newSell.profile._id == purchase.profile._id:
+                                            Order.objects.filter(_id=newSell._id).update(complete=True)
+                                            Order.objects.filter(_id=purchase._id).update(complete=True)
+                                            break
+                                        else:
+                                            if purchases.price >= float(newSell.price):
+                                                Order.objects.filter(_id=purchase._id).update(complete=True)
+                                                profile.BTC -= float(purchase.quantity)
+                                                profile.fiatMoney += float(purchase.price)
+                                                profile.profit += float(purchase.price)
+                                                profile.save()
+                                                purchaseProfile.BTC += float(purchase.quantity)
+                                                purchaseProfile.fiatMoney -= float(purchase.price)
+                                                profit = purchaseProfile.profit + (purchaseProfile.fiatMoney - secondaryBalance)
+                                                purchaseProfile.profit = profit
+                                                purchaseProfile.save()
+                                                Order.objects.filter(_id=newSell._id).update(complete=True)
+                                                break
+                                            else:
+                                                messages.success(request, 'Registered Order!')
+                                                return redirect('home')
+                                    elif totQuantity < float(request.POST['quantity']):
+                                        newQuantity = round((float(request.POST['quantity']) - float(totQuantity)), 8)
+                                        newPrice = ((float(newSell.price) * float(newQuantity)) / float(newSell.quantity))
+                                        if newSell.profile._id == purchase.profile._id:
+                                            Order.objects.filter(_id=newSell._id).update(quantity=newQuantity)
+                                            Order.objects.filter(_id=newSell._id).update(price=newPrice)
+                                            Order.objects.filter(_id=purchase._id).update(complete=True)
+                                            break
+                                        else:
+                                            if purchases.price >= float(newSell.price):
+                                                profile.BTC -= float(totQuantity)
+                                                profile.fiatMoney += float(purchase.price)
+                                                profile.profit += float(purchase.price)
+                                                profile.save()
+                                                purchaseProfile.BTC += float(totQuantity)
+                                                purchaseProfile.fiatMoney -= float(purchase.price)
+                                                profit = purchaseProfile.profit + (purchaseProfile.fiatMoney - secondaryBalance)
+                                                purchaseProfile.profit = profit
+                                                purchaseProfile.save()
+                                                Order.objects.filter(_id=purchase._id).update(complete=True)
+                                                Order.objects.filter(_id=newSell._id).update(quantity=newQuantity)
+                                                Order.objects.filter(_id=newSell._id).update(price=newPrice)
+                                                break
+                                            else:
+                                                messages.success(request, 'Registered Order!')
+                                                return redirect('home')
+                                    if newSell.profile._id == purchases.profile._id:
+                                        Order.objects.filter(_id=purchase._id).update(complete=True)
+                                        Order.objects.filter(_id=newSell._id).update(complete=True)
+                                    else:
+                                        if purchases.price >= float(newSell.price):
+                                            Order.objects.filter(_id=purchase._id).update(complete=True)
+                                            profile.BTC -= float(purchase.quantity)
+                                            profile.fiatMoney += float(purchase.price)
+                                            profile.profit += float(purchase.price)
+                                            profile.save()
+                                            purchaseProfile.BTC += float(purchase.quantity)
+                                            purchaseProfile.fiatMoney -= float(purchase.price)
+                                            profit = purchaseProfile.profit + (purchaseProfile.fiatMoney - firstBalance)
+                                            purchaseProfile.profit = profit
+                                            purchaseProfile.save()
+                                            Order.objects.filter(_id=newSell._id).update(complete=True)
+                                        else:
+                                            messages.success(request, 'Registered Order!')
+                                            return redirect('home')
+                                messages.success(request, 'Registered Order!')
+                                return redirect('home')
+                            elif float(request.POST['quantity']) < purchases.quantity:
+                                upgradeOrder = round((purchases.quantity - float(request.POST['quantity'])), 8)
+                                newPrice = ((float(purchases.price) * float(upgradeOrder)) / float(purchases.quantity))
+                                if newSell.profile._id == purchases.profile._id:
+                                    Order.objects.filter(_id=purchases._id).update(quantity=upgradeOrder)
+                                    Order.objects.filter(_id=purchases._id).update(price=newPrice)
+                                    Order.objects.filter(_id=newSell._id).update(complete=True)
+                                    messages.success(request, 'Registered Order!')
+                                    return redirect('home')
+                                else:
+                                    if purchases.price >= float(newSell.price):
+                                        profile.BTC -= float(newSell.quantity)
+                                        profile.fiatMoney += ((float(purchases.price) * float(upgradeOrder)) / float(purchases.quantity))
+                                        profile.profit += ((float(purchases.price) * float(upgradeOrder)) / float(purchases.quantity))
+                                        profile.save()
+                                        purchaseProfile.BTC += float(newSell.quantity)
+                                        purchaseProfile.fiatMoney -= ((float(purchases.price) * float(upgradeOrder)) / float(purchases.quantity))
+                                        profit = purchaseProfile.profit + (purchaseProfile.fiatMoney - firstBalance)
+                                        purchaseProfile.profit = profit
+                                        purchaseProfile.save()
+                                        Order.objects.filter(_id=purchases._id).update(quantity=upgradeOrder)
+                                        Order.objects.filter(_id=purchases._id).update(price=newPrice)
+                                        Order.objects.filter(_id=newSell._id).update(complete=True)
+                                        messages.success(request, 'Registered Order!')
+                                        return redirect('home')
+                                    else:
+                                        messages.success(request, 'Registered Order!')
+                                        return redirect('home')
+                    except IndexError:
+                        messages.error(request, "Registered Sale Order. Pending a Purchase Order!")
+                        return redirect('home')
                 else:
                     messages.error(request, 'Impossible to perform the operation! Insufficient BTC!')
                     return redirect('home')
@@ -37,55 +200,123 @@ def home(request):
                     newBuy = Order(profile=profile, price=request.POST['price'], quantity=request.POST['quantity'], type='Buy')
                     newBuy.save()
                     try:
-                        sales = Order.objects.filter(type__contains='Sell').filter(complete=False).order_by('quantity').order_by('price')[0]
+                        sales = Order.objects.filter(type__contains='Sell').filter(complete=False).order_by('price')[0]
                         saleProfile = sales.profile
                         firstBalance = round(saleProfile.fiatMoney, 2)
                         if sales:
                             if float(request.POST['quantity']) == sales.quantity:
-                                Order.objects.filter(_id=newBuy._id).update(complete=True)
-                                profile.BTC += float(newBuy.quantity)
-                                profile.fiatMoney -= float(sales.price)
-                                profile.profit -= float(sales.price)
-                                profile.save()
-                                Order.objects.filter(_id=sales._id).update(complete=True)
-                                saleProfile.BTC -= float(sales.quantity)
-                                saleProfile.fiatMoney += float(sales.price)
-                                profit = saleProfile.profit + (saleProfile.fiatMoney - firstBalance)
-                                saleProfile.profit = profit
-                                saleProfile.save()
-                                messages.success(request, 'Registered Order!')
-                                return redirect('home')
+                                if newBuy.profile._id == sales.profile._id:
+                                    Order.objects.filter(_id=newBuy._id).update(complete=True)
+                                    Order.objects.filter(_id=sales._id).update(complete=True)
+                                    messages.success(request, 'Registered Order!')
+                                    return redirect('home')
+                                else:
+                                    if sales.price >= float(newBuy.price):
+                                        Order.objects.filter(_id=newBuy._id).update(complete=True)
+                                        profile.BTC += float(newBuy.quantity)
+                                        profile.fiatMoney -= float(sales.price)
+                                        profile.profit -= float(sales.price)
+                                        profile.save()
+                                        Order.objects.filter(_id=sales._id).update(complete=True)
+                                        saleProfile.BTC -= float(sales.quantity)
+                                        saleProfile.fiatMoney += float(sales.price)
+                                        profit = saleProfile.profit + (saleProfile.fiatMoney - firstBalance)
+                                        saleProfile.profit = profit
+                                        saleProfile.save()
+                                        messages.success(request, 'Registered Order!')
+                                        return redirect('home')
+                                    else:
+                                        messages.success(request, 'Registered Order!')
+                                        return redirect('home')
                             elif float(request.POST['quantity']) > sales.quantity:
                                 quantityOrder = 0.0
-                                listOrder = Order.objects.filter(type__contains='Sell').filter(complete=False).order_by('quantity').order_by('price')
+                                listOrder = Order.objects.filter(type__contains='Sell').filter(complete=False).order_by('price')
                                 listQuantityOrder = []
                                 for i in listOrder:
                                     listQuantityOrder.append(i.quantity)
                                 totQuantity = sum(listQuantityOrder)
-                                if totQuantity < float(request.POST['quantity']):
-                                    Order.objects.filter(_id=newBuy._id).delete()
-                                    messages.success(request, 'There are not enough sales orders to complete the task!')
-                                    return redirect('home')
-                                else:
-                                    for sale in list(Order.objects.filter(type__contains='Sell').filter(complete=False).order_by('quantity').order_by('price')):
-                                        quantityOrder += float(sale.quantity)
-                                        secondaryBalance = saleProfile.fiatMoney
-                                        if quantityOrder > float(request.POST['quantity']):
-                                            newQuantity = round(float(quantityOrder) - float(request.POST['quantity']), 8)
-                                            newPrice = ((float(sale.price) * float(newQuantity)) / float(sale.quantity))
-                                            profile.BTC += float(newQuantity)
-                                            profile.fiatMoney -= ((float(sale.price) * float(newQuantity)) / float(sale.quantity))
-                                            profile.profit -= ((float(sale.price) * float(newQuantity)) / float(sale.quantity))
-                                            profile.save()
-                                            saleProfile.BTC -= float(newQuantity)
-                                            saleProfile.fiatMoney += ((float(sale.price) * float(newQuantity)) / float(sale.quantity))
-                                            profit = saleProfile.profit + (saleProfile.fiatMoney - secondaryBalance)
-                                            saleProfile.profit = profit
-                                            saleProfile.save()
+                                for sale in listOrder:
+                                    quantityOrder += float(sale.quantity)
+                                    secondaryBalance = saleProfile.fiatMoney
+                                    if quantityOrder > float(request.POST['quantity']):
+                                        newQuantity = round((float(quantityOrder) - float(request.POST['quantity'])), 8)
+                                        newPrice = ((float(sale.price) * float(newQuantity)) / float(sale.quantity))
+                                        if newBuy.profile._id == sales.profile._id:
                                             Order.objects.filter(_id=sale._id).update(quantity=newQuantity)
                                             Order.objects.filter(_id=sale._id).update(price=newPrice)
+                                            Order.objects.filter(_id=newBuy._id).update(complete=True)
                                             break
-                                        elif quantityOrder == float(request.POST['quantity']):
+                                        else:
+                                            if sales.price >= float(newBuy.price):
+                                                profile.BTC += float(newQuantity)
+                                                profile.fiatMoney -= ((float(sale.price) * float(newQuantity)) / float(sale.quantity))
+                                                profile.profit -= ((float(sale.price) * float(newQuantity)) / float(sale.quantity))
+                                                profile.save()
+                                                saleProfile.BTC -= float(newQuantity)
+                                                saleProfile.fiatMoney += ((float(sale.price) * float(newQuantity)) / float(sale.quantity))
+                                                profit = saleProfile.profit + (saleProfile.fiatMoney - secondaryBalance)
+                                                saleProfile.profit = profit
+                                                saleProfile.save()
+                                                Order.objects.filter(_id=sale._id).update(quantity=newQuantity)
+                                                Order.objects.filter(_id=sale._id).update(price=newPrice)
+                                                Order.objects.filter(_id=newBuy._id).update(complete=True)
+                                                break
+                                            else:
+                                                messages.success(request, 'Registered Order!')
+                                                return redirect('home')
+                                    elif quantityOrder == float(request.POST['quantity']):
+                                        if newBuy.profile._id == sales.profile._id:
+                                            Order.objects.filter(_id=newBuy._id).update(complete=True)
+                                            Order.objects.filter(_id=sale._id).update(complete=True)
+                                            break
+                                        else:
+                                            if sales.price >= float(newBuy.price):
+                                                Order.objects.filter(_id=sale._id).update(complete=True)
+                                                profile.BTC += float(sale.quantity)
+                                                profile.fiatMoney -= float(sale.price)
+                                                profile.profit -= float(sale.price)
+                                                profile.save()
+                                                saleProfile.BTC -= float(sale.quantity)
+                                                saleProfile.fiatMoney += float(sale.price)
+                                                profit = saleProfile.profit + (saleProfile.fiatMoney - secondaryBalance)
+                                                saleProfile.profit = profit
+                                                saleProfile.save()
+                                                Order.objects.filter(_id=newBuy._id).update(complete=True)
+                                                break
+                                            else:
+                                                messages.success(request, 'Registered Order!')
+                                                return redirect('home')
+                                    elif totQuantity < float(request.POST['quantity']):
+                                        newQuantity = round((float(request.POST['quantity']) - float(totQuantity)), 8)
+                                        newPrice = ((float(newBuy.price) * float(newQuantity)) / float(newBuy.quantity))
+                                        if newBuy.profile._id == sales.profile._id:
+                                            Order.objects.filter(_id=newBuy._id).update(quantity=newQuantity)
+                                            Order.objects.filter(_id=newBuy._id).update(price=newPrice)
+                                            Order.objects.filter(_id=sale._id).update(complete=True)
+                                            break
+                                        else:
+                                            if sales.price >= float(newBuy.price):
+                                                profile.BTC += float(totQuantity)
+                                                profile.fiatMoney -= float(sale.price)
+                                                profile.profit -= float(sale.price)
+                                                profile.save()
+                                                saleProfile.BTC -= float(totQuantity)
+                                                saleProfile.fiatMoney += float(sale.price)
+                                                profit = saleProfile.profit + (saleProfile.fiatMoney - secondaryBalance)
+                                                saleProfile.profit = profit
+                                                saleProfile.save()
+                                                Order.objects.filter(_id=sale._id).update(complete=True)
+                                                Order.objects.filter(_id=newBuy._id).update(quantity=newQuantity)
+                                                Order.objects.filter(_id=newBuy._id).update(price=newPrice)
+                                                break
+                                            else:
+                                                messages.success(request, 'Registered Order!')
+                                                return redirect('home')
+                                    if newBuy.profile._id == sales.profile._id:
+                                        Order.objects.filter(_id=sale._id).update(complete=True)
+                                        Order.objects.filter(_id=newBuy._id).update(complete=True)
+                                    else:
+                                        if sales.price >= float(newBuy.price):
                                             Order.objects.filter(_id=sale._id).update(complete=True)
                                             profile.BTC += float(sale.quantity)
                                             profile.fiatMoney -= float(sale.price)
@@ -93,43 +324,45 @@ def home(request):
                                             profile.save()
                                             saleProfile.BTC -= float(sale.quantity)
                                             saleProfile.fiatMoney += float(sale.price)
-                                            profit = saleProfile.profit + (saleProfile.fiatMoney - secondaryBalance)
+                                            profit = saleProfile.profit + (saleProfile.fiatMoney - firstBalance)
                                             saleProfile.profit = profit
                                             saleProfile.save()
-                                            break
-                                        Order.objects.filter(_id=sale._id).update(complete=True)
-                                        profile.BTC += float(sale.quantity)
-                                        profile.fiatMoney -= float(sale.price)
-                                        profile.profit -= float(sale.price)
-                                        profile.save()
-                                        saleProfile.BTC -= float(sale.quantity)
-                                        saleProfile.fiatMoney += float(sale.price)
-                                        profit = saleProfile.profit + (saleProfile.fiatMoney - firstBalance)
-                                        saleProfile.profit = profit
-                                        saleProfile.save()
+                                            Order.objects.filter(_id=newBuy._id).update(complete=True)
+                                        else:
+                                            messages.success(request, 'Registered Order!')
+                                            return redirect('home')
+                                messages.success(request, 'Registered Order!')
+                                return redirect('home')
+                            elif float(request.POST['quantity']) < sales.quantity:
+                                upgradeOrder = round((sales.quantity - float(request.POST['quantity'])), 8)
+                                newPrice = ((float(sales.price) * float(upgradeOrder)) / float(sales.quantity))
+                                if newBuy.profile._id == sales.profile._id:
+                                    Order.objects.filter(_id=sales._id).update(quantity=upgradeOrder)
+                                    Order.objects.filter(_id=sales._id).update(price=newPrice)
                                     Order.objects.filter(_id=newBuy._id).update(complete=True)
                                     messages.success(request, 'Registered Order!')
                                     return redirect('home')
-                            elif float(request.POST['quantity']) < sales.quantity:
-                                upgradeOrder = sales.quantity - float(request.POST['quantity'])
-                                newPrice = ((float(sales.price) * float(upgradeOrder)) / float(sales.quantity))
-                                profile.BTC += float(newBuy.quantity)
-                                profile.fiatMoney -= ((float(sales.price) * float(upgradeOrder)) / float(sales.quantity))
-                                profile.profit -= ((float(sales.price) * float(upgradeOrder)) / float(sales.quantity))
-                                profile.save()
-                                saleProfile.BTC -= float(newBuy.quantity)
-                                saleProfile.fiatMoney += ((float(sales.price) * float(upgradeOrder)) / float(sales.quantity))
-                                profit = saleProfile.profit + (saleProfile.fiatMoney - firstBalance)
-                                saleProfile.profit = profit
-                                saleProfile.save()
-                                Order.objects.filter(_id=sales._id).update(quantity=upgradeOrder)
-                                Order.objects.filter(_id=sales._id).update(price=newPrice)
-                                Order.objects.filter(_id=newBuy._id).update(complete=True)
-                                messages.success(request, 'Registered Order!')
-                                return redirect('home')
+                                else:
+                                    if sales.price >= float(newBuy.price):
+                                        profile.BTC += float(newBuy.quantity)
+                                        profile.fiatMoney -= ((float(sales.price) * float(upgradeOrder)) / float(sales.quantity))
+                                        profile.profit -= ((float(sales.price) * float(upgradeOrder)) / float(sales.quantity))
+                                        profile.save()
+                                        saleProfile.BTC -= float(newBuy.quantity)
+                                        saleProfile.fiatMoney += ((float(sales.price) * float(upgradeOrder)) / float(sales.quantity))
+                                        profit = saleProfile.profit + (saleProfile.fiatMoney - firstBalance)
+                                        saleProfile.profit = profit
+                                        saleProfile.save()
+                                        Order.objects.filter(_id=sales._id).update(quantity=upgradeOrder)
+                                        Order.objects.filter(_id=sales._id).update(price=newPrice)
+                                        Order.objects.filter(_id=newBuy._id).update(complete=True)
+                                        messages.success(request, 'Registered Order!')
+                                        return redirect('home')
+                                    else:
+                                        messages.success(request, 'Registered Order!')
+                                        return redirect('home')
                     except IndexError:
-                        Order.objects.filter(_id=newBuy._id).delete()
-                        messages.error(request, "Don't exist sell orders!")
+                        messages.error(request, "Registered Purchase Order. Pending a Sale Order!")
                         return redirect('home')
                 else:
                     messages.error(request, 'Impossible to perform the operation! Insufficient Funds!')
